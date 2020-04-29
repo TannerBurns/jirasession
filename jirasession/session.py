@@ -52,7 +52,7 @@ class JiraSession(requests.Session):
         return {int} -- accountid or None
         """
         url = f'{self.base_url}/myself'
-        return self.session.get(url)
+        return self.get(url)
 
     def assign_issue(self, issue_id: str, accountid: str) -> requests.Response:
         """
@@ -61,7 +61,7 @@ class JiraSession(requests.Session):
         issue_id {str} -- newly created issue id
         """
         url = f'{self.base_url}/issue/{issue_id}/assignee'
-        return self.session.put(url, data=json.dumps({'accountId': accountid}))
+        return self.put(url, data=json.dumps({'accountId': accountid}))
 
     def get_transitions_from_issue(self, issue_id: str) -> requests.Response:
         """
@@ -72,7 +72,7 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from get to transitions route
         """
         url = f'{self.base_url}/issue/{issue_id}/transitions'
-        return self.session.get(url)
+        return self.get(url)
 
     def transition_issue(self, issue_id: str, transition_state_id: str) -> requests.Response:
         """
@@ -84,7 +84,7 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from post to transitions route
         """
         url = f'{self.base_url}/issue/{issue_id}/transitions'
-        return self.session.post(url, data=json.dumps({'transition': {'id': transition_state_id}}))
+        return self.post(url, data=json.dumps({'transition': {'id': transition_state_id}}))
 
     def add_comment(self, issue_id: str, comment: str) -> requests.Response:
         """
@@ -96,7 +96,7 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from post to comment route
         """
         url = f'{self.base_url}/issue/{issue_id}/comment'
-        return self.session.post(url, data=json.dumps({'body': comment}))
+        return self.post(url, data=json.dumps({'body': comment}))
 
     def track_issue_time(self, issue_id:str, time_spent: str) -> requests.Response:
         """
@@ -108,7 +108,7 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from post to worklog route
         """
         url = f'{self.base_url}/issue/{issue_id}/worklog'
-        return self.session.post(url, data=json.dumps({'timeSpent': time_spent}))
+        return self.post(url, data=json.dumps({'timeSpent': time_spent}))
 
     def get_jira_user(self, username: Union[str, list]) -> requests.Response:
         """
@@ -123,7 +123,7 @@ class JiraSession(requests.Session):
             url += f'username={username}'
         elif isinstance(username, list):
             url += f'username={"&username=".join(username)}'
-        return self.session.get(url)
+        return self.get(url)
 
     def assign_to_me(self, issue: str):
         """
@@ -143,7 +143,7 @@ class JiraSession(requests.Session):
         return {list} -- issues
         """
         url = f'{self.base_url}/board/{id}/issue'
-        resp = self.session.get(url, params={'maxResults': maxresults})
+        resp = self.get(url, params={'maxResults': maxresults})
         issues = []
         if resp.status_code == 200:
             data = resp.json()
@@ -159,7 +159,7 @@ class JiraSession(requests.Session):
         return {list} -- issuetypes found for the given project
         """
         url = f'{self.base_url}/project/{project_key}'
-        resp = self.session.get(url)
+        resp = self.get(url)
         issuetypes = []
         if resp.status_code == 200:
             for issuetype in resp.json().get('issueTypes', []):
@@ -177,7 +177,7 @@ class JiraSession(requests.Session):
         return {list} -- priorities found for the given project
         """
         url = f'{self.base_url}/priority'
-        resp = self.session.get(url)
+        resp = self.get(url)
         priorities = []
         if resp.status_code == 200:
             for priority in resp.json():
