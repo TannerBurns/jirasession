@@ -3,7 +3,7 @@ import json
 
 from typing import Union
 from requests.auth import HTTPBasicAuth
-from user import JiraUser
+from jirasession.user import JiraUser
 
 class JiraSession(requests.Session):
     jirauser: JiraUser
