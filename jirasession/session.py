@@ -210,6 +210,18 @@ class JiraSession(requests.Session):
 
     def search(self, jql: str, start:int = 0, maxresults:int = 50, fields:list = ['*all'], validate:bool=True,
                validate_level:str = 'strict', expand:dict= {}) -> requests.Response:
+        """
+        search jira using a jql statement
+        jql {str} -- jql string to search and validate if chosen
+        start {int} -- start index
+        maxresults {int} -- max number of results per page
+        fields {list} -- fields to retrieve, add a '-' to a field to remove it. Default: *all
+        validate {bool} -- to validate jql string upon search
+        validate_level {str} -- validation level: strict, warn, none. Default: strict
+        expand {dict} -- custom expand for search, use jira api docs to further expand
+
+        return {requests.Response} -- response from search route (POST)
+        """
         url = f'{self.base_url}/search'
         data = {
             'jql': jql,
