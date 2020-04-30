@@ -125,7 +125,7 @@ class JiraSession(requests.Session):
             url += f'username={"&username=".join(username)}'
         return self.get(url)
 
-    def assign_to_me(self, issue_id: str):
+    def assign_to_me(self, issue_id: str) -> requests.Response:
         """
         assign to yourself based on jirauser.userid
         issue {str} -- issue id to assign to yourself
@@ -150,7 +150,7 @@ class JiraSession(requests.Session):
             params.update({'expand':'renderedBody'})
         return self.get(url, params=params)
 
-    def get_all_comments(self, issue_id: str, orderby:str = 'created', expand:bool = False):
+    def get_all_comments(self, issue_id: str, orderby:str = 'created', expand:bool = False) -> list:
         """get all comments from an issue
 
         issue_id {str} -- issue id to get comments for
