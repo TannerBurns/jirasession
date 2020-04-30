@@ -165,29 +165,11 @@ class JiraSession(requests.Session):
             first_page = resp.json()
             total_comments = first_page.get('total', 0)
             issue_comments.extend(first_page.get('comments', []))
-            for num_page in range(1, int(total_comments / 50)):
+            for num_page in range(1, int(total_comments / 50)+1):
                 resp = self.get_comments(issue_id, start=num_page*50, orderby=orderby, expand=expand)
                 if resp.status_code == 200:
                     issue_comments.extend(resp.json().get('comments'), [])
         return issue_comments
-
-    def get_issues_from_project(self, project_key: int, maxresults: int = None) -> list:
-        """
-        retrieve all issues from a given project id
-        id {int} -- id for project
-        maxresults {int} -- max number of results
-
-        !**THIS NEEDS TO BE UPDATED** pretty sure this has been deprecated by jira, need to switch to jql route
-
-        return {list} -- issues
-        """
-        url = f'{self.base_url}/board/{project_key}/issue'
-        resp = self.get(url, params={'maxResults': maxresults})
-        issues = []
-        if resp.status_code == 200:
-            data = resp.json()
-            issues.extend([i for i in data.get('issues', []) if i])
-        return issues
 
     def get_project_issuetypes(self, project_key: str) -> list:
         """
@@ -224,3 +206,42 @@ class JiraSession(requests.Session):
                 if name:
                     priorities.append(name)
         return priorities
+
+
+    def search(self, jql: str, start:int = 0, maxresults:int = 50, fields:list = ['*all'], validate:bool=True,
+               validate_level:str = 'strict', expand:dict= {}) -> requests.Response:
+        url = f'{self.base_url}/search'
+        data = {
+            'jql': jql,
+            'startAt': start,
+            'maxResults': maxresults,
+            'fields': fields
+        }
+        if validate:
+            data.update({'validateQuery': validate_level})
+        if expand:
+            data.update(expand)
+        return self.post(url, data=json.dumps(data))
+
+    def get_issues_from_project(self, project_key: str, maxresults: int = None) -> list:
+        """
+        retrieve all issues from a given project id
+        project_key {str} -- project key, example: DEV
+        maxresults {int} -- max number of results
+
+        return {list} -- issues
+        """
+        issues = []
+        jql = f'project={project_key}'
+        resp = self.search(jql)
+        if resp.status_code == 200:
+            first_page = resp.json()
+            total_issues = first_page.get('total', 0)
+            issues.extend(first_page.get('issues', []))
+            for num_page in range(1, int(total_issues / 50)+1):
+                if maxresults and len(issues) >= maxresults:
+                    return issues[:maxresults]
+                resp = self.search(jql, start=num_page*50)
+                if resp.status_code == 200:
+                    issues.extend(resp.json().get('issues', []))
+        return issues
