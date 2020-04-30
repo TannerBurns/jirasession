@@ -165,7 +165,7 @@ class JiraSession(requests.Session):
             first_page = resp.json()
             total_comments = first_page.get('total', 0)
             issue_comments.extend(first_page.get('comments', []))
-            for num_page in range(1, total_comments / 50):
+            for num_page in range(1, int(total_comments / 50)):
                 resp = self.get_comments(issue_id, start=num_page*50, orderby=orderby, expand=expand)
                 if resp.status_code == 200:
                     issue_comments.extend(resp.json().get('comments'), [])
