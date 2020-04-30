@@ -125,24 +125,63 @@ class JiraSession(requests.Session):
             url += f'username={"&username=".join(username)}'
         return self.get(url)
 
-    def assign_to_me(self, issue: str):
+    def assign_to_me(self, issue_id: str) -> requests.Response:
         """
         assign to yourself based on jirauser.userid
         issue {str} -- issue id to assign to yourself
         """
-        return self.assign_issue(issue, self.jirauser.accountid)
+        return self.assign_issue(issue_id, self.jirauser.accountid)
 
-    def get_issues_from_project(self, id: int, maxresults: int = None) -> list:
+    def get_comments(self, issue_id: str, start:int = 0, maxresults:int = 50, 
+                     orderby:str = 'created', expand:bool = False) -> requests.Response:
+        """get comments from an issue
+        
+        issue_id {str} -- issue id to get comments for
+        start {int} -- start index for retrieval
+        maxresults {int} -- max number of comments to retrieve [default: 50]
+        orderby {str} -- order comments by created date, other options [-created, +created]
+        expand {bool} -- if true, renderBody will be sent to get comments rendered in html
+
+        return {requests.Response} -- response from comments route
+        """
+        url = f'{self.base_url}/issue/{issue_id}/comment'
+        params = {'start': start, 'maxResults': maxresults, 'orderBy': orderby}
+        if expand:
+            params.update({'expand':'renderedBody'})
+        return self.get(url, params=params)
+
+    def get_all_comments(self, issue_id: str, orderby:str = 'created', expand:bool = False) -> list:
+        """get all comments from an issue
+
+        issue_id {str} -- issue id to get comments for
+        orderby {str} -- order comments by created date, other options [-created, +created]
+        expand {bool} -- if true, renderBody will be sent to get comments rendered in html
+
+        return {list} -- return list of comments from issue
+        """
+        issue_comments = []
+        resp = self.get_comments(issue_id, orderby=orderby, expand=expand)
+        if resp.status_code == 200:
+            first_page = resp.json()
+            total_comments = first_page.get('total', 0)
+            issue_comments.extend(first_page.get('comments', []))
+            for num_page in range(1, int(total_comments / 50)):
+                resp = self.get_comments(issue_id, start=num_page*50, orderby=orderby, expand=expand)
+                if resp.status_code == 200:
+                    issue_comments.extend(resp.json().get('comments'), [])
+        return issue_comments
+
+    def get_issues_from_project(self, project_key: int, maxresults: int = None) -> list:
         """
         retrieve all issues from a given project id
         id {int} -- id for project
         maxresults {int} -- max number of results
 
-        !**THIS NEEDS TO BE UPDATED**
+        !**THIS NEEDS TO BE UPDATED** pretty sure this has been deprecated by jira, need to switch to jql route
 
         return {list} -- issues
         """
-        url = f'{self.base_url}/board/{id}/issue'
+        url = f'{self.base_url}/board/{project_key}/issue'
         resp = self.get(url, params={'maxResults': maxresults})
         issues = []
         if resp.status_code == 200:
