@@ -129,7 +129,7 @@ class JiraSession(requests.Session):
         params = {'fields':fields}
         if expand:
             params.update({'expand': expand})
-        return self._resolver(partial(url, self.get, params=params))
+        return self._resolver(partial(self.get, url, params=params))
 
     def delete_issue(self, issue_key: str, delete_subtasks:bool=False) -> requests.Response:
         """
