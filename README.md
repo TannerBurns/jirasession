@@ -10,10 +10,10 @@ from jirasession import JiraSession
 session = JiraSession('email', 'token', 'https://server.atlassian.net/')
 
 new_isssue = {
-    'project': 'DEV',
+    'project': {'key': 'DEV'},
     'summary': 'test',
     'description': 'test',
-    'issueType': 'Ticket'
+    'issuetype': {'name':'Ticket'}
 }
 
 resp = session.create_issue(new_isssue)

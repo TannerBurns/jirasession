@@ -51,9 +51,9 @@ class JiraSession(requests.Session):
 
     def create_issue(self, content: dict) -> requests.Response:
         """
-        create a new issue and assign it to the user who created it
+        create a new issue
 
-        issue_content {str} -- raw json dump of issue data
+        content {dict} -- dictionary of issue content
 
         return {requests.Response} -- response from post
         """
@@ -61,6 +61,49 @@ class JiraSession(requests.Session):
         if 'fields' not in content:
             content = {'fields': content}
         return self._resolver(partial(self.post, url, data=json.dumps(content)))
+
+    def get_issue(self, issue_id: str, fields:list = ['*all'], expand:dict = {}):
+        """
+        get jira issue by id
+
+        issue_id {str} -- id of issue to get
+        fields {list} -- fields to retrieve, add a '-' to a field to remove it. Default: *all
+        expand {dict} -- custom expand for search, use jira api docs to further expand
+
+        return {requests.Response} -- response from issue route (GET)
+        """
+        url = f'{self.base_url}/issue/{issue_id}'
+        params = {'fields':fields}
+        if expand:
+            params.update({'expand': expand})
+        return self._resolver(partial(url, self.get, params=params))
+
+    def delete_issue(self, issue_id: str, delete_subtasks:bool=False):
+        """
+        delete and issue by id
+
+        issue_id {str} -- id of issue to delete
+
+        return {requests.Response} -- response from delete
+        """
+        url = f'{self.base_url}/issue/{issue_id}'
+        return self._resolver(partial(self.delete, url, params={'deletesubtasks': delete_subtasks}))
+
+
+    def update_issue(self, issue_id:str, content: dict) -> requests.Response:
+        """
+        update an issue by id
+
+        issue_id {str} -- id of issue to update
+        content {dict} -- dictionary of issue content
+
+        return {requests.Response} -- response from put
+        """
+        url = f'{self.base_url}/issue/{issue_id}'
+        if 'fields' not in content:
+            content = {'fields': content}
+        return self._resolver(partial(self.put, url, data=json.dumps(content)))
+
 
     def account_info(self) -> requests.Response:
         """
@@ -129,7 +172,7 @@ class JiraSession(requests.Session):
 
     def get_jira_user(self, username: Union[str, list]) -> requests.Response:
         """
-        get user infomration for jira users by usernames
+        get user information for jira users by usernames
 
         username {Union[str, list]} -- a username or list of usernames
 
