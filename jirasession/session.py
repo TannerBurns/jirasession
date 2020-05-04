@@ -1,5 +1,6 @@
 import requests
 import json
+import os
 
 from functools import partial
 from typing import Union
@@ -37,7 +38,7 @@ class JiraSession(requests.Session):
         self.jirauser = JiraUser().login(username, token, server)
         self.auth = HTTPBasicAuth(self.jirauser.username, self.jirauser.token)
 
-    def _resolver(self, request: partial):
+    def _resolver(self, request: partial) -> requests.Response:
         """attempt to resolve a bad requests
         don't call this method alone
         """
@@ -48,6 +49,44 @@ class JiraSession(requests.Session):
             attempt += 1
         return resp
 
+    def link_issues(self, in_issue_key:str, out_issue_key:str, type:str = 'Relates To',
+                    comment: dict = None) -> requests.Response:
+        """link two issues together, in and out will relate to jira api route but has no effect on functionality
+        
+        in_issue_key {str} -- first issue key to link
+        out_issue_key {str} -- second issue key to link with first
+        type {str] -- type of link, default: Relates To
+        comment {dict} [optional] -- comment for linking of issues
+        
+        return {requests.Response} -- response from issuelink route
+        """
+        url = f'{self.base_url}/issueLink'
+        payload = {
+            'outwardIssue': {'key':out_issue_key},
+            'inwardIssue': {'key':in_issue_key},
+            'type': {'name': type.title()}
+        }
+        if comment:
+            payload.update({'comment': comment})
+        return self._resolver(partial(self.post, url, data=json.dumps(payload)))
+
+    def add_attachment(self, issue_key: str, filepath: str) -> requests.Response:
+        """
+        add an attachment to an issue
+
+        issue_key {str} -- id or key of issue to add attachment
+        filepath {str} -- path to file to use as attachment
+
+        return {requests.Response} -- response from attachment route
+        """
+        url = f'{self.base_url}/issue/{issue_key}/attachments'
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f'Could not locate file at: {filepath}!r')
+        if not os.path.isfile(filepath):
+            raise TypeError(f'Could not open: {filepath!r}. Must be a file.')
+        with open(filepath, 'rb') as fin:
+            filestream = {'file': fin}
+            return self._resolver(partial(self.post, url, files=filestream))
 
     def create_issue(self, content: dict) -> requests.Response:
         """
@@ -62,44 +101,44 @@ class JiraSession(requests.Session):
             content = {'fields': content}
         return self._resolver(partial(self.post, url, data=json.dumps(content)))
 
-    def get_issue(self, issue_id: str, fields:list = ['*all'], expand:dict = {}):
+    def get_issue(self, issue_key: str, fields:list = ['*all'], expand:dict = {}) -> requests.Response:
         """
         get jira issue by id
 
-        issue_id {str} -- id of issue to get
+        issue_key {str} -- key of issue to get
         fields {list} -- fields to retrieve, add a '-' to a field to remove it. Default: *all
         expand {dict} -- custom expand for search, use jira api docs to further expand
 
         return {requests.Response} -- response from issue route (GET)
         """
-        url = f'{self.base_url}/issue/{issue_id}'
+        url = f'{self.base_url}/issue/{issue_key}'
         params = {'fields':fields}
         if expand:
             params.update({'expand': expand})
         return self._resolver(partial(url, self.get, params=params))
 
-    def delete_issue(self, issue_id: str, delete_subtasks:bool=False):
+    def delete_issue(self, issue_key: str, delete_subtasks:bool=False) -> requests.Response:
         """
         delete and issue by id
 
-        issue_id {str} -- id of issue to delete
+        issue_key {str} -- key of issue to delete
 
         return {requests.Response} -- response from delete
         """
-        url = f'{self.base_url}/issue/{issue_id}'
+        url = f'{self.base_url}/issue/{issue_key}'
         return self._resolver(partial(self.delete, url, params={'deletesubtasks': delete_subtasks}))
 
 
-    def update_issue(self, issue_id:str, content: dict) -> requests.Response:
+    def update_issue(self, issue_key:str, content: dict) -> requests.Response:
         """
         update an issue by id
 
-        issue_id {str} -- id of issue to update
+        issue_key {str} -- key of issue to update
         content {dict} -- dictionary of issue content
 
         return {requests.Response} -- response from put
         """
-        url = f'{self.base_url}/issue/{issue_id}'
+        url = f'{self.base_url}/issue/{issue_key}'
         if 'fields' not in content:
             content = {'fields': content}
         return self._resolver(partial(self.put, url, data=json.dumps(content)))
@@ -114,60 +153,60 @@ class JiraSession(requests.Session):
         url = f'{self.base_url}/myself'
         return self.get(url)
 
-    def assign_issue(self, issue_id: str, accountid: str) -> requests.Response:
+    def assign_issue(self, issue_key: str, accountid: str) -> requests.Response:
         """
         assign a issue to the current user accountid
 
-        issue_id {str} -- newly created issue id
+        issue_key {str} -- newly created issue key
         """
-        url = f'{self.base_url}/issue/{issue_id}/assignee'
+        url = f'{self.base_url}/issue/{issue_key}/assignee'
         return self._resolver(partial(self.put, url, data=json.dumps({'accountId': accountid})))
 
-    def get_transitions_from_issue(self, issue_id: str) -> requests.Response:
+    def get_transitions_from_issue(self, issue_key: str) -> requests.Response:
         """
         get the available transitions for a issue
 
-        issue_id {str} -- issue key to pull available transitions from
+        issue_key {str} -- issue key to pull available transitions from
 
         return {requests.Response} -- response from get to transitions route
         """
-        url = f'{self.base_url}/issue/{issue_id}/transitions'
+        url = f'{self.base_url}/issue/{issue_key}/transitions'
         return self._resolver(partial(self.get, url))
 
-    def transition_issue(self, issue_id: str, transition_state_id: str) -> requests.Response:
+    def transition_issue(self, issue_key: str, transition_state_id: str) -> requests.Response:
         """
         transition a issue to a new state by id
 
-        issue_id {str} -- issue key to pull available transitions from
+        issue_key {str} -- issue key to pull available transitions from
         transition_state_id {str} -- new transition state id
 
         return {requests.Response} -- response from post to transitions route
         """
-        url = f'{self.base_url}/issue/{issue_id}/transitions'
+        url = f'{self.base_url}/issue/{issue_key}/transitions'
         return self._resolver(partial(self.post, url, data=json.dumps({'transition': {'id': transition_state_id}})))
 
-    def add_comment(self, issue_id: str, comment: str) -> requests.Response:
+    def add_comment(self, issue_key: str, comment: str) -> requests.Response:
         """
         add a new comment to a issue
 
-        issue_id {str} -- issue key to pull available transitions from
+        issue_key {str} -- issue key to pull available transitions from
         comment {str} -- string to add as comment
 
         return {requests.Response} -- response from post to comment route
         """
-        url = f'{self.base_url}/issue/{issue_id}/comment'
+        url = f'{self.base_url}/issue/{issue_key}/comment'
         return self._resolver(partial(self.post, url, data=json.dumps({'body': comment})))
 
-    def track_issue_time(self, issue_id:str, time_spent: str) -> requests.Response:
+    def track_issue_time(self, issue_key:str, time_spent: str) -> requests.Response:
         """
         add time for time tracking application for a issue
 
-        issue_id {str} -- issue key to pull available transitions from
+        issue_key {str} -- issue key to pull available transitions from
         time_spent {str} -- jira format time. ex: 1d 2h 3m
 
         return {requests.Response} -- response from post to worklog route
         """
-        url = f'{self.base_url}/issue/{issue_id}/worklog'
+        url = f'{self.base_url}/issue/{issue_key}/worklog'
         return self._resolver(partial(self.post, url, data=json.dumps({'timeSpent': time_spent})))
 
     def get_jira_user(self, username: Union[str, list]) -> requests.Response:
@@ -185,18 +224,18 @@ class JiraSession(requests.Session):
             url += f'username={"&username=".join(username)}'
         return self._resolver(partial(self.get, url))
 
-    def assign_to_me(self, issue_id: str) -> requests.Response:
+    def assign_to_me(self, issue_key: str) -> requests.Response:
         """
         assign to yourself based on jirauser.userid
-        issue {str} -- issue id to assign to yourself
+        issue {str} -- issue key to assign to yourself
         """
-        return self.assign_issue(issue_id, self.jirauser.accountid)
+        return self.assign_issue(issue_key, self.jirauser.accountid)
 
-    def get_comments(self, issue_id: str, start:int = 0, maxresults:int = 50, 
+    def get_comments(self, issue_key: str, start:int = 0, maxresults:int = 50, 
                      orderby:str = 'created', expand:bool = False) -> requests.Response:
         """get comments from an issue
         
-        issue_id {str} -- issue id to get comments for
+        issue_key {str} -- issue key to get comments for
         start {int} -- start index for retrieval
         maxresults {int} -- max number of comments to retrieve [default: 50]
         orderby {str} -- order comments by created date, other options [-created, +created]
@@ -204,29 +243,29 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from comments route
         """
-        url = f'{self.base_url}/issue/{issue_id}/comment'
+        url = f'{self.base_url}/issue/{issue_key}/comment'
         params = {'start': start, 'maxResults': maxresults, 'orderBy': orderby}
         if expand:
             params.update({'expand':'renderedBody'})
         return self._resolver(partial(self.get, url, params=params))
 
-    def get_all_comments(self, issue_id: str, orderby:str = 'created', expand:bool = False) -> list:
+    def get_all_comments(self, issue_key: str, orderby:str = 'created', expand:bool = False) -> list:
         """get all comments from an issue
 
-        issue_id {str} -- issue id to get comments for
+        issue_key {str} -- issue key to get comments for
         orderby {str} -- order comments by created date, other options [-created, +created]
         expand {bool} -- if true, renderBody will be sent to get comments rendered in html
 
         return {list} -- return list of comments from issue
         """
         issue_comments = []
-        resp = self.get_comments(issue_id, orderby=orderby, expand=expand)
+        resp = self.get_comments(issue_key, orderby=orderby, expand=expand)
         if resp.status_code == 200:
             first_page = resp.json()
             total_comments = first_page.get('total', 0)
             issue_comments.extend(first_page.get('comments', []))
             for num_page in range(1, int(total_comments / 50)+1):
-                resp = self.get_comments(issue_id, start=num_page*50, orderby=orderby, expand=expand)
+                resp = self.get_comments(issue_key, start=num_page*50, orderby=orderby, expand=expand)
                 if resp.status_code == 200:
                     issue_comments.extend(resp.json().get('comments'), [])
         return issue_comments
