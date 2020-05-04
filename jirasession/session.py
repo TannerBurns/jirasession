@@ -49,22 +49,36 @@ class JiraSession(requests.Session):
             attempt += 1
         return resp
 
-    def link_issues(self, in_issue_key:str, out_issue_key:str, type:str = 'Relates To',
+    def link_issues(self, main_issue_key:str, sub_issue_key:str, relationship:str = 'relates to',
                     comment: dict = None) -> requests.Response:
         """link two issues together, in and out will relate to jira api route but has no effect on functionality
         
-        in_issue_key {str} -- first issue key to link
-        out_issue_key {str} -- second issue key to link with first
-        type {str] -- type of link, default: Relates To
+        main_issue_key {str} -- main issue key
+        sub_issue_key {str} -- sub issue key to link with main
+        relationship {str] -- type of link, default: Relates To
         comment {dict} [optional] -- comment for linking of issues
         
         return {requests.Response} -- response from issuelink route
         """
-        url = f'{self.base_url}/issueLink'
+        #attempt to get sub issue
+        resp = self.get_issue(sub_issue_key)
+        if resp.status_code != 200:
+            return resp
+        sub_issue = resp.json()
+        sub_issue_obj = {
+            'object': {
+                'summary': sub_issue.get('fields', {}).get('summary',
+                                                           f'Linking {sub_issue_key!r}to {main_issue_key!r}'),
+                'title': sub_issue_key,
+                'url': sub_issue.get('self', f'{self.base_url}/issue/{sub_issue_key}'),
+                'status': sub_issue.get('fields', {}).get('status', {})
+            }
+        }
+
+        url = f'{self.base_url}/issue/{main_issue_key}/remoteLink'
         payload = {
-            'outwardIssue': {'key':out_issue_key},
-            'inwardIssue': {'key':in_issue_key},
-            'type': {'name': type.title()}
+            'relationship': relationship,
+            'object': sub_issue_obj
         }
         if comment:
             payload.update({'comment': comment})
@@ -85,8 +99,8 @@ class JiraSession(requests.Session):
         if not os.path.isfile(filepath):
             raise TypeError(f'Could not open: {filepath!r}. Must be a file.')
         with open(filepath, 'rb') as fin:
-            filestream = {'file': fin}
-            return self._resolver(partial(self.post, url, files=filestream))
+            headers = {'Content-Type':None, 'X-Atlassian-Token': 'nocheck'}
+            return self._resolver(partial(self.post, url, files={'file': fin}, headers=headers))
 
     def create_issue(self, content: dict) -> requests.Response:
         """
