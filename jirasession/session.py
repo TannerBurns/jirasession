@@ -13,7 +13,7 @@ class JiraSession(requests.Session):
     base_url: str
 
     def __init__(self, username: str, token: str, server: str, session: requests.Session = None, max_retries: int = 3,
-                 pool_connections: int = 16, pool_maxsize: int = 16, resolve_status_codes:list = [200, 201]):
+                 pool_connections: int = 16, pool_maxsize: int = 16, resolve_status_codes:list = [200, 201, 204]):
         super().__init__()
 
         # initialize session
@@ -49,8 +49,7 @@ class JiraSession(requests.Session):
             attempt += 1
         return resp
 
-    def link_issues(self, main_issue_key:str, sub_issue_key:str, relationship:str = 'relates to',
-                    comment: dict = None) -> requests.Response:
+    def link_issues(self, main_issue_key:str, sub_issue_key:str, relationship:str = 'relates to') -> requests.Response:
         """link two issues together, in and out will relate to jira api route but has no effect on functionality
         
         main_issue_key {str} -- main issue key
@@ -65,7 +64,10 @@ class JiraSession(requests.Session):
         if resp.status_code != 200:
             return resp
         sub_issue = resp.json()
-        sub_issue_obj = {
+
+        url = f'{self.base_url}/issue/{main_issue_key}/remotelink'
+        payload = {
+            'relationship': relationship,
             'object': {
                 'summary': sub_issue.get('fields', {}).get('summary',
                                                            f'Linking {sub_issue_key!r}to {main_issue_key!r}'),
@@ -74,14 +76,6 @@ class JiraSession(requests.Session):
                 'status': sub_issue.get('fields', {}).get('status', {})
             }
         }
-
-        url = f'{self.base_url}/issue/{main_issue_key}/remoteLink'
-        payload = {
-            'relationship': relationship,
-            'object': sub_issue_obj
-        }
-        if comment:
-            payload.update({'comment': comment})
         return self._resolver(partial(self.post, url, data=json.dumps(payload)))
 
     def add_attachment(self, issue_key: str, filepath: str) -> requests.Response:
