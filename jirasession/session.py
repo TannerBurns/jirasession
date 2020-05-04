@@ -49,34 +49,43 @@ class JiraSession(requests.Session):
             attempt += 1
         return resp
 
-    def link_issues(self, main_issue_key:str, sub_issue_key:str, relationship:str = 'relates to') -> requests.Response:
+    def link_issues(self, in_issue_key:str, out_issue_key:str, link_type:str = 'relates to',
+                    comment: dict = None) -> requests.Response:
         """link two issues together, in and out will relate to jira api route but has no effect on functionality
         
-        main_issue_key {str} -- main issue key
-        sub_issue_key {str} -- sub issue key to link with main
-        relationship {str] -- type of link, default: Relates To
+        in_issue_key {str} -- the issue to link from
+        out_issue_key {str} -- the issue to link to
+        link_type {str] -- type of link, default: Relates To
         comment {dict} [optional] -- comment for linking of issues
         
         return {requests.Response} -- response from issuelink route
         """
-        #attempt to get sub issue
-        resp = self.get_issue(sub_issue_key)
-        if resp.status_code != 200:
-            return resp
-        sub_issue = resp.json()
+        # get link types
+        if not hasattr(self, 'issue_link_types'):
+            resp = self.link_types()
+            if resp.status_code != 200:
+                return resp
 
-        url = f'{self.base_url}/issue/{main_issue_key}/remotelink'
+            self.issue_link_types = resp.json().get('issueLinkTypes', [])
+
+        for ilt in self.issue_link_types:
+            if link_type.lower() == ilt.get('inward', '').lower() \
+                    or link_type.lower() == ilt.get('outward', '').lower():
+                link_type = ilt.get('name', '')
+                break
+
+        url = f'{self.base_url}/issueLink'
         payload = {
-            'relationship': relationship,
-            'object': {
-                'summary': sub_issue.get('fields', {}).get('summary',
-                                                           f'Linking {sub_issue_key!r}to {main_issue_key!r}'),
-                'title': sub_issue_key,
-                'url': sub_issue.get('self', f'{self.base_url}/issue/{sub_issue_key}'),
-                'status': sub_issue.get('fields', {}).get('status', {})
-            }
+            'type': {'name':link_type},
+            'inwardIssue': {'key': in_issue_key},
+            'outwardIssue': {'key': out_issue_key},
+            'comment': comment
         }
         return self._resolver(partial(self.post, url, data=json.dumps(payload)))
+
+    def link_types(self):
+        url = f'{self.base_url}/issueLinkType'
+        return self._resolver(partial(self.get, url))
 
     def add_attachment(self, issue_key: str, filepath: str) -> requests.Response:
         """
