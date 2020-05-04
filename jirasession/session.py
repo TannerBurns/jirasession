@@ -27,6 +27,8 @@ class JiraSession(requests.Session):
         )
         self.retries = max_retries
         self.resolve_status_codes = resolve_status_codes
+        if 200 not in resolve_status_codes:
+            self.resolve_status_codes.append(200)
         self.mount("https://", adapters)
         self.mount('http://', adapters)
         self.headers.update({"Accept": "application/json", "Content-Type": "application/json"})
