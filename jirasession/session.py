@@ -12,7 +12,7 @@ class JiraSession(requests.Session):
     base_url: str
 
     def __init__(self, username: str, token: str, server: str, session: requests.Session = None, max_retries: int = 3,
-                 pool_connections: int = 16, pool_maxsize: int = 16, resolve_status_codes:list = [200]):
+                 pool_connections: int = 16, pool_maxsize: int = 16, resolve_status_codes:list = [200, 201]):
         super().__init__()
 
         # initialize session
@@ -36,11 +36,12 @@ class JiraSession(requests.Session):
         self.auth = HTTPBasicAuth(self.jirauser.username, self.jirauser.token)
 
     def _resolver(self, request: partial):
+        """attempt to resolve a bad requests
+        don't call this method alone
+        """
         attempt = 1
         resp = request()
-        while attempt >= self.retries:
-            if resp.status_code in self.resolve_status_codes:
-                return resp
+        while attempt <= self.retries and resp.status_code not in self.resolve_status_codes:
             resp = request()
             attempt += 1
         return resp
