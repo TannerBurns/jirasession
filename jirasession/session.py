@@ -1,6 +1,7 @@
 import requests
 import json
 
+from functools import partial
 from typing import Union
 from requests.auth import HTTPBasicAuth
 from jirasession.user import JiraUser
@@ -11,7 +12,7 @@ class JiraSession(requests.Session):
     base_url: str
 
     def __init__(self, username: str, token: str, server: str, session: requests.Session = None, max_retries: int = 3,
-                 pool_connections: int = 16, pool_maxsize: int = 16, raise_exception: bool = True):
+                 pool_connections: int = 16, pool_maxsize: int = 16, resolve_status_codes:list = [200]):
         super().__init__()
 
         # initialize session
@@ -24,14 +25,25 @@ class JiraSession(requests.Session):
             pool_maxsize=pool_maxsize,
             max_retries=max_retries
         )
+        self.retries = max_retries
+        self.resolve_status_codes = resolve_status_codes
         self.mount("https://", adapters)
         self.mount('http://', adapters)
         self.headers.update({"Accept": "application/json", "Content-Type": "application/json"})
-        self.raise_exception = raise_exception
 
         # attempt user login
         self.jirauser = JiraUser().login(username, token, server)
         self.auth = HTTPBasicAuth(self.jirauser.username, self.jirauser.token)
+
+    def _resolver(self, request: partial):
+        attempt = 1
+        resp = request()
+        while attempt >= self.retries:
+            if resp.status_code in self.resolve_status_codes:
+                return resp
+            resp = request()
+            attempt += 1
+        return resp
 
 
     def create_issue(self, content: dict) -> requests.Response:
@@ -43,7 +55,9 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from post
         """
         url = f'{self.base_url}/issue'
-        return self.post(url, data=json.dumps(content))
+        if 'fields' not in content:
+            content = {'fields': content}
+        return self._resolver(partial(self.post, url, data=json.dumps(content)))
 
     def account_info(self) -> requests.Response:
         """
@@ -61,7 +75,7 @@ class JiraSession(requests.Session):
         issue_id {str} -- newly created issue id
         """
         url = f'{self.base_url}/issue/{issue_id}/assignee'
-        return self.put(url, data=json.dumps({'accountId': accountid}))
+        return self._resolver(partial(self.put, url, data=json.dumps({'accountId': accountid})))
 
     def get_transitions_from_issue(self, issue_id: str) -> requests.Response:
         """
@@ -72,7 +86,7 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from get to transitions route
         """
         url = f'{self.base_url}/issue/{issue_id}/transitions'
-        return self.get(url)
+        return self._resolver(partial(self.get, url))
 
     def transition_issue(self, issue_id: str, transition_state_id: str) -> requests.Response:
         """
@@ -84,7 +98,7 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from post to transitions route
         """
         url = f'{self.base_url}/issue/{issue_id}/transitions'
-        return self.post(url, data=json.dumps({'transition': {'id': transition_state_id}}))
+        return self._resolver(partial(self.post, url, data=json.dumps({'transition': {'id': transition_state_id}})))
 
     def add_comment(self, issue_id: str, comment: str) -> requests.Response:
         """
@@ -96,7 +110,7 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from post to comment route
         """
         url = f'{self.base_url}/issue/{issue_id}/comment'
-        return self.post(url, data=json.dumps({'body': comment}))
+        return self._resolver(partial(self.post, url, data=json.dumps({'body': comment})))
 
     def track_issue_time(self, issue_id:str, time_spent: str) -> requests.Response:
         """
@@ -108,7 +122,7 @@ class JiraSession(requests.Session):
         return {requests.Response} -- response from post to worklog route
         """
         url = f'{self.base_url}/issue/{issue_id}/worklog'
-        return self.post(url, data=json.dumps({'timeSpent': time_spent}))
+        return self._resolver(partial(self.post, url, data=json.dumps({'timeSpent': time_spent})))
 
     def get_jira_user(self, username: Union[str, list]) -> requests.Response:
         """
@@ -123,7 +137,7 @@ class JiraSession(requests.Session):
             url += f'username={username}'
         elif isinstance(username, list):
             url += f'username={"&username=".join(username)}'
-        return self.get(url)
+        return self._resolver(partial(self.get, url))
 
     def assign_to_me(self, issue_id: str) -> requests.Response:
         """
@@ -148,7 +162,7 @@ class JiraSession(requests.Session):
         params = {'start': start, 'maxResults': maxresults, 'orderBy': orderby}
         if expand:
             params.update({'expand':'renderedBody'})
-        return self.get(url, params=params)
+        return self._resolver(partial(self.get, url, params=params))
 
     def get_all_comments(self, issue_id: str, orderby:str = 'created', expand:bool = False) -> list:
         """get all comments from an issue
@@ -233,7 +247,7 @@ class JiraSession(requests.Session):
             data.update({'validateQuery': validate_level})
         if expand:
             data.update(expand)
-        return self.post(url, data=json.dumps(data))
+        return self._resolver(partial(self.post, url, data=json.dumps(data)))
 
     def get_issues_from_project(self, project_key: str, maxresults: int = None) -> list:
         """
