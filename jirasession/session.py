@@ -83,7 +83,12 @@ class JiraSession(requests.Session):
         }
         return self._resolver(partial(self.post, url, data=json.dumps(payload)))
 
-    def link_types(self):
+    def link_types(self) -> requests.Response:
+        """
+        retrieve the link types for jira issues
+
+        return {requests.Response} -- response from issueLinkType route
+        """
         url = f'{self.base_url}/issueLinkType'
         return self._resolver(partial(self.get, url))
 
