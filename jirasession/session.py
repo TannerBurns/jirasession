@@ -89,8 +89,7 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from issueLinkType route
         """
-        url = f'{self.base_url}/issueLinkType'
-        return self._resolver(partial(self.get, url))
+        return self._resolver(partial(self.get, f'{self.base_url}/issueLinkType'))
 
     def add_attachment(self, issue_key: str, filepath: str) -> requests.Response:
         """
@@ -118,10 +117,9 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from post
         """
-        url = f'{self.base_url}/issue'
         if 'fields' not in content:
             content = {'fields': content}
-        return self._resolver(partial(self.post, url, data=json.dumps(content)))
+        return self._resolver(partial(self.post, f'{self.base_url}/issue', data=json.dumps(content)))
 
     def get_issue(self, issue_key: str, fields:list = ['*all'], expand:dict = {}) -> requests.Response:
         """
@@ -133,11 +131,10 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from issue route (GET)
         """
-        url = f'{self.base_url}/issue/{issue_key}'
         params = {'fields':fields}
         if expand:
             params.update({'expand': expand})
-        return self._resolver(partial(self.get, url, params=params))
+        return self._resolver(partial(self.get, f'{self.base_url}/issue/{issue_key}', params=params))
 
     def delete_issue(self, issue_key: str, delete_subtasks:bool=False) -> requests.Response:
         """
@@ -147,9 +144,8 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from delete
         """
-        url = f'{self.base_url}/issue/{issue_key}'
-        return self._resolver(partial(self.delete, url, params={'deletesubtasks': delete_subtasks}))
-
+        return self._resolver(partial(self.delete, f'{self.base_url}/issue/{issue_key}',
+                                      params={'deletesubtasks': delete_subtasks}))
 
     def update_issue(self, issue_key:str, content: dict) -> requests.Response:
         """
@@ -160,11 +156,9 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from put
         """
-        url = f'{self.base_url}/issue/{issue_key}'
         if 'fields' not in content:
             content = {'fields': content}
-        return self._resolver(partial(self.put, url, data=json.dumps(content)))
-
+        return self._resolver(partial(self.put, f'{self.base_url}/issue/{issue_key}', data=json.dumps(content)))
 
     def account_info(self) -> requests.Response:
         """
@@ -172,8 +166,7 @@ class JiraSession(requests.Session):
 
         return {int} -- accountid or None
         """
-        url = f'{self.base_url}/myself'
-        return self.get(url)
+        return self._resolver(partial(self.get,f'{self.base_url}/myself'))
 
     def assign_issue(self, issue_key: str, accountid: str) -> requests.Response:
         """
@@ -181,8 +174,8 @@ class JiraSession(requests.Session):
 
         issue_key {str} -- newly created issue key
         """
-        url = f'{self.base_url}/issue/{issue_key}/assignee'
-        return self._resolver(partial(self.put, url, data=json.dumps({'accountId': accountid})))
+        return self._resolver(partial(self.put, f'{self.base_url}/issue/{issue_key}/assignee',
+                                      data=json.dumps({'accountId': accountid})))
 
     def get_transitions_from_issue(self, issue_key: str) -> requests.Response:
         """
@@ -192,8 +185,7 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from get to transitions route
         """
-        url = f'{self.base_url}/issue/{issue_key}/transitions'
-        return self._resolver(partial(self.get, url))
+        return self._resolver(partial(self.get, f'{self.base_url}/issue/{issue_key}/transitions'))
 
     def transition_issue(self, issue_key: str, transition_state_id: str) -> requests.Response:
         """
@@ -204,8 +196,8 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from post to transitions route
         """
-        url = f'{self.base_url}/issue/{issue_key}/transitions'
-        return self._resolver(partial(self.post, url, data=json.dumps({'transition': {'id': transition_state_id}})))
+        return self._resolver(partial(self.post, f'{self.base_url}/issue/{issue_key}/transitions',
+                                      data=json.dumps({'transition': {'id': transition_state_id}})))
 
     def add_comment(self, issue_key: str, comment: str) -> requests.Response:
         """
@@ -216,8 +208,8 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from post to comment route
         """
-        url = f'{self.base_url}/issue/{issue_key}/comment'
-        return self._resolver(partial(self.post, url, data=json.dumps({'body': comment})))
+        return self._resolver(partial(self.post, f'{self.base_url}/issue/{issue_key}/comment',
+                                      data=json.dumps({'body': comment})))
 
     def track_issue_time(self, issue_key:str, time_spent: str) -> requests.Response:
         """
@@ -228,12 +220,14 @@ class JiraSession(requests.Session):
 
         return {requests.Response} -- response from post to worklog route
         """
-        url = f'{self.base_url}/issue/{issue_key}/worklog'
-        return self._resolver(partial(self.post, url, data=json.dumps({'timeSpent': time_spent})))
+        return self._resolver(partial(self.post, f'{self.base_url}/issue/{issue_key}/worklog',
+                                      data=json.dumps({'timeSpent': time_spent})))
 
     def get_jira_user(self, username: Union[str, list]) -> requests.Response:
         """
         get user information for jira users by usernames
+
+        DEPRECATED
 
         username {Union[str, list]} -- a username or list of usernames
 
@@ -245,6 +239,17 @@ class JiraSession(requests.Session):
         elif isinstance(username, list):
             url += f'username={"&username=".join(username)}'
         return self._resolver(partial(self.get, url))
+
+    def jira_user_search(self, query: str):
+        """
+        search user information using jql
+
+        :param query: {str} -- the jql string to search
+            Ex: emailAddress = username@emaildomain.com
+
+        :return: {requests.Response} -- response from the search
+        """
+        return self._resolver(partial(self.get, f'{self.base_url}/user/search', params={'query':query}))
 
     def assign_to_me(self, issue_key: str) -> requests.Response:
         """
