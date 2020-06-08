@@ -240,7 +240,7 @@ class JiraSession(requests.Session):
             url += f'username={"&username=".join(username)}'
         return self._resolver(partial(self.get, url))
 
-    def jira_user_search(self, query: str):
+    def user_search(self, query: str):
         """
         search user information using jql
 
