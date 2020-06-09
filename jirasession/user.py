@@ -1,5 +1,6 @@
 import requests
 
+
 class JiraUser(object):
     """An authenticated Jira user"""
     username: str
@@ -25,7 +26,7 @@ class JiraUser(object):
 
 
     @classmethod
-    def login(cls, username:str=None, token: str=None, server:str=None) -> object:
+    def login(cls, username:str=None, token: str=None, server:str=None):
         """ login to a jirasession
         
         username {str} -- username for jira account
