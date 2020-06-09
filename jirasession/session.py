@@ -1,11 +1,13 @@
 import requests
 import json
 import os
+import logging
 
 from functools import partial
 from typing import Union
 from requests.auth import HTTPBasicAuth
 from jirasession.user import JiraUser
+
 
 class JiraSession(requests.Session):
     jirauser: JiraUser
@@ -13,8 +15,18 @@ class JiraSession(requests.Session):
     base_url: str
 
     def __init__(self, username: str, token: str, server: str, session: requests.Session = None, max_retries: int = 3,
-                 pool_connections: int = 16, pool_maxsize: int = 16, resolve_status_codes:list = [200, 201, 204]):
+                 pool_connections: int = 16, pool_maxsize: int = 16, resolve_status_codes:list = [200, 201, 204],
+                 verbose: bool = False):
         super().__init__()
+
+        # setup logger
+        logging.basicConfig(
+            level=logging.INFO,
+            format='[%(asctime)s] %(levelname)s - %(message)s',
+            datefmt='%H:%M:%S'
+        )
+        self.session_logger = logging.getLogger(name='JiraSession')
+        self.verbose = verbose
 
         # initialize session
         if session:
@@ -38,6 +50,14 @@ class JiraSession(requests.Session):
         self.jirauser = JiraUser().login(username, token, server)
         self.auth = HTTPBasicAuth(self.jirauser.username, self.jirauser.token)
 
+    def _log_response(self, response: requests.Response) -> None:
+        """log each response from resolver"""
+        fmt_msg = f'{response.url.split("://")[0]}, {response.request.method.upper()}, {response.request.path_url}, ' \
+            f'{response.status_code}, {response.request.headers.get("User-Agent", "Unknown")}'
+        self.session_logger.info(fmt_msg)
+        if response.status_code >= 300 and self.verbose:
+            self.session_logger.error(f'REPONSE: {response.text}')
+
     def _resolver(self, request: partial) -> requests.Response:
         """attempt to resolve a bad requests
         don't call this method alone
@@ -47,6 +67,7 @@ class JiraSession(requests.Session):
         while attempt <= self.retries and resp.status_code not in self.resolve_status_codes:
             resp = request()
             attempt += 1
+        self._log_response(resp)
         return resp
 
     def link_issues(self, in_issue_key:str, out_issue_key:str, link_type:str = 'relates to',
