@@ -344,7 +344,7 @@ new_isssue = {
 }
 
 resp = session.create_issue(new_isssue)
-if resp.status_code == 200:
+if resp.status_code == 201:
     print('issue created') # handle requests.Response to get issue information
 else:
     print('error creating issue') # debug requests.Response here
